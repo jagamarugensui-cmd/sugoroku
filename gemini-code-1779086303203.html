@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>崩壊：スターレイル 自己紹介すごろく</title>
+    <style>
+        /* ==== デザイン（CSS） ==== */
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        
+        /* プレイヤー設定画面 */
+        .player-setup {
+            margin: 20px 0;
+            padding: 20px;
+            background: #eef2f5;
+            border-radius: 8px;
+        }
+        .player-setup input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        /* ボタンのデザイン */
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #e6a23c; /* スターレイルっぽいゴールド系 */
+            color: white;
+            border: none;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #cf9236;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* ゲーム操作・メッセージエリア */
+        .game-controls {
+            margin-bottom: 20px;
+        }
+        .dice-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .message-box {
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 60px;
+            font-size: 18px;
+            font-weight: bold;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+
+        /* すごろく盤面 */
+        .game-board-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            /* 画像の比率を維持 */
+        }
+        #game-board-img {
+            width: 100%;
+            display: block;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* コマのデザイン */
+        .player-piece {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+            transition: top 0.5s ease-in-out, left 0.5s ease-in-out;
+            z-index: 10;
+        }
+        /* プレイヤーごとの色 */
+        .player-1 { background-color: #ff4757; } /* 赤 */
+        .player-2 { background-color: #1e90ff; } /* 青 */
+        .player-3 { background-color: #2ed573; } /* 緑 */
+        .player-4 { background-color: #ffa502; } /* オレンジ */
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>崩壊：スターレイル 自己紹介すごろく</h1>
+
+    <div class="player-setup" id="player-setup">
+        <h3>プレイヤー設定</h3>
+        <label>遊ぶ人数 (1〜4人): <input type="number" id="num-players" min="1" max="4" value="2"></label><br><br>
+        <div id="name-inputs">
+            <input type="text" id="player-1-name" placeholder="プレイヤー1の名前"><br>
+            <input type="text" id="player-2-name" placeholder="プレイヤー2の名前"><br>
+            <input type="text" id="player-3-name" placeholder="プレイヤー3の名前"><br>
+            <input type="text" id="player-4-name" placeholder="プレイヤー4の名前"><br>
+        </div><br>
+        <button id="start-game-button">ゲーム開始！</button>
+    </div>
+
+    <div id="game-area" style="display: none;">
+        <div class="game-controls">
+            <h2>現在のターン: <span id="current-player" style="color:#e6a23c;">-</span></h2>
+            <button id="roll-dice-button">サイコロを振る</button>
+            <div class="dice-display">出た目: <span id="dice-result">-</span></div>
+        </div>
+
+        <div class="message-box" id="event-message">ここにイベントが表示されます。</div>
+
+        <div class="game-board-container">
+            <img src="2.jpg" id="game-board-img" alt="すごろく盤面">
+            </div>
+    </div>
+</div>
+
+<script>
+    /* ==== プログラム（JavaScript） ==== */
+    document.addEventListener('DOMContentLoaded', () => {
+        const gameBoardContainer = document.querySelector('.game-board-container');
+        const rollDiceButton = document.getElementById('roll-dice-button');
+        const diceResultDisplay = document.getElementById('dice-result');
+        const currentPlayerDisplay = document.getElementById('current-player');
+        const eventMessageDisplay = document.getElementById('event-message');
+        const numPlayersInput = document.getElementById('num-players');
+        const startGameButton = document.getElementById('start-game-button');
+        const playerSetupArea = document.getElementById('player-setup');
+        const gameArea = document.getElementById('game-area');
+
+        let numPlayers = 1;
+        let currentPlayer = 1;
+        let evented = 0;
+        let playerPositions = [];
+        let playerPieces = [];
+        let playerNames = [];
+        let playerSkipTurns = [];
+
+        // マスの座標(x,y%)とイベント定義
+        const squares = [
+            { name: "スタート（星穹列車）", x: 14, y: 17, event: "最初に引いた限定星５キャラは？" }, // 0
+            { name: "ゴミ箱", x: 8.5, y: 39, event: "チャレンジ！ヤリーロかピノコニーに行き「ゴミ箱」を見つけろ！（1分以内）" }, // 1
+            { name: "BGM", x: 8.5, y: 62, event: "一番好きなBGMは？" }, // 2
+            { name: "育てたいキャラ", x: 10, y: 84, event: "次に育てたいキャラは？" }, // 3
+            { name: "HPチャレンジ", x: 23, y: 88, event: "チャレンジ！編成画面を開き、一番左にいるキャラの「HPの下一桁」を確認する。偶数なら成功！奇数なら失敗！" }, // 4
+            { name: "きっかけ", x: 20, y: 64, event: "スタレを始めたきっかけは？" }, // 5
+            { name: "好きなボス", x: 29, y: 53, event: "好きなボスは？" }, // 6
+            { name: "好きなキャラ", x: 22, y: 38, event: "一番好きなキャラは？" }, // 7
+            { name: "好きな星", x: 35, y: 22, event: "一番好きな星は？" }, // 8
+            { name: "マップ・景色", x: 37, y: 40, event: "一番好きなマップ・景色は？" }, // 9
+            { name: "ストーリー", x: 43, y: 55, event: "好きなストーリーは？" }, // 10
+            { name: "必殺技", x: 35, y: 72, event: "好きな必殺技は？" }, // 11
+            { name: "次に引きたい", x: 39, y: 92, event: "次に引きたいキャラは？" }, // 12
+            { name: "運命", x: 54, y: 82, event: "どの運命を歩んでみたい？" }, // 13
+            { name: "組織", x: 55, y: 64, event: "どの組織に入ってみたい？（例：星核ハンター）" }, // 14
+            { name: "手料理", x: 52, y: 46, event: "手料理を食べてみたいキャラは？" }, // 15
+            { name: "ショートカット！？", x: 50, y: 28, event: "ショートカット！？ Lv0遺物を+3強化！\n【会心率・会心ダメ・速度】のどれかが追加or強化で成功！", special: "shortcut" }, // 16
+            { name: "光円錐", x: 65, y: 45, event: "好きな光円錐は？" }, // 17
+            { name: "オシャレ", x: 69, y: 70, event: "オシャレだと思うキャラは？" }, // 18
+            { name: "よく使う編成", x: 64, y: 92, event: "よく使う編成は？" }, // 19
+            { name: "完凸", x: 75, y: 90, event: "完凸無料なら誰凸る？" }, // 20
+            { name: "列車墜落", x: 88, y: 85, event: "列車が墜落！？ 1回やすみ", special: "skip_turn" }, // 21
+            { name: "消耗品", x: 93, y: 65, event: "食べてみたい消耗品は？" }, // 22
+            { name: "自慢の遺物", x: 77, y: 65, event: "自慢の遺物があれば見せて！" }, // 23
+            { name: "好きな星神", x: 74, y: 42, event: "好きな星神は？" }, // 24
+            { name: "神引き", x: 90, y: 45, event: "一番の神引きを教えて！" }, // 25
+            { name: "すりぬけ", x: 65, y: 25, event: "一番すりぬけで会うキャラは？" }, // 26 (ワープ先)
+            { name: "ゴール（創世の渦心）", x: 85, y: 20, event: "ゴール！\n「見事なゴールだったよ、君の勝利に祝福を。」", goal: true } // 27
+        ];
+
+        // ゲーム開始
+        startGameButton.addEventListener('click', () => {
+            numPlayers = parseInt(numPlayersInput.value);
+            if (numPlayers > 4) numPlayers = 4;
+            if (numPlayers < 1) numPlayers = 1;
+
+            playerNames = [];
+            for (let i = 1; i <= numPlayers; i++) {
+                const nameInput = document.getElementById(`player-${i}-name`);
+                playerNames.push(nameInput.value || `プレイヤー${i}`);
+            }
+
+            initializeGame();
+            playerSetupArea.style.display = 'none'; // 設定エリアを隠す
+            gameArea.style.display = 'block';     // ゲームエリアを表示
+            rollDiceButton.disabled = false;
+        });
+        
+        function initializeGame() {
+            currentPlayer = 1;
+            playerPositions = Array(numPlayers).fill(0);
+            playerSkipTurns = Array(numPlayers).fill(0);
+            playerPieces.forEach(piece => piece.remove());
+            playerPieces = [];
+
+            for (let i = 0; i < numPlayers; i++) {
+                const piece = document.createElement('div');
+                piece.classList.add('player-piece', `player-${i + 1}`);
+                gameBoardContainer.appendChild(piece);
+                playerPieces.push(piece);
+                updatePlayerPiecePosition(i);
+            }
+            updateGameInfo();
+            eventMessageDisplay.textContent = `ゲームスタート！\nまずは全員、「${squares[0].event}」`;
+        }
+
+        // サイコロを振る
+        rollDiceButton.addEventListener('click', () => {
+            if (playerSkipTurns[currentPlayer - 1] > 0) {
+                playerSkipTurns[currentPlayer - 1]--;
+                diceResultDisplay.textContent = "-";
+                eventMessageDisplay.textContent = `${playerNames[currentPlayer - 1]} はお休み中です...💤`;
+                currentPlayer = (currentPlayer % numPlayers) + 1;
+                updateGameInfo();
+                return;
+            }
+
+            const diceRoll = Math.floor(Math.random() * 6) + 1; // 6面ダイス
+            diceResultDisplay.textContent = diceRoll;
+            evented = 0;
+            movePlayer(diceRoll);
+        });
+
+        function movePlayer(steps) {
+            let currentPositionIndex = playerPositions[currentPlayer - 1];
+            let newPositionIndex = currentPositionIndex + steps;
+
+            if (newPositionIndex >= squares.length - 1) {
+                newPositionIndex = squares.length - 1; // ゴールマス
+                playerPositions[currentPlayer - 1] = newPositionIndex;
+                updatePlayerPiecePosition(currentPlayer - 1);
+                updateGameInfo();
+                eventMessageDisplay.textContent = `🎉 ${playerNames[currentPlayer - 1]} が到着！ 🎉\n${squares[newPositionIndex].event}`;
+                rollDiceButton.disabled = true;
+                alert(`${playerNames[currentPlayer - 1]}の勝利です！おめでとうございます！`);
+                return;
+            }
+
+            playerPositions[currentPlayer - 1] = newPositionIndex;
+            updatePlayerPiecePosition(currentPlayer - 1);
+            updateGameInfo();
+            handleSquareEvent(newPositionIndex);
+
+            currentPlayer = (currentPlayer % numPlayers) + 1;
+            updateGameInfo();
+        }
+
+        // マスのイベント処理
+        function handleSquareEvent(squareIndex) {
+            const square = squares[squareIndex];
+            eventMessageDisplay.textContent = `${playerNames[currentPlayer - 1]} が止まりました。\n💬「${square.event}」`;
+
+            if (square.special === "shortcut") {
+                evented = 1;
+                // setTimeoutを使って少し遅らせてからダイアログを出す
+                setTimeout(() => {
+                    const success = confirm("【ショートカットチャンス！】\n遺物強化の結果、「会心率・会心ダメ・速度」のどれかが追加または強化されましたか？\n(OK = 成功 / キャンセル = 失敗)");
+                    if (success) {
+                        eventMessageDisplay.textContent += ` \n✨ 大成功！赤い橋を渡ってワープします！ ✨`;
+                        let newPositionIndex = 26; // すりぬけのマスへワープ
+                        // 元のプレイヤー（ターンが進んでしまっているので調整）
+                        let targetPlayer = currentPlayer === 1 ? numPlayers : currentPlayer - 1;
+                        playerPositions[targetPlayer - 1] = newPositionIndex;
+                        updatePlayerPiecePosition(targetPlayer - 1);
+                        setTimeout(() => {
+                             eventMessageDisplay.textContent = `${playerNames[targetPlayer - 1]} がワープしました！\n💬「${squares[newPositionIndex].event}」`;
+                        }, 500);
+                    } else {
+                        eventMessageDisplay.textContent += " \n💦 惜しくも失敗...通常ルートを進みます。";
+                    }
+                }, 500);
+            } else if (square.special === "skip_turn") {
+                evented = 1;
+                // 元のプレイヤー
+                let targetPlayer = currentPlayer === 1 ? numPlayers : currentPlayer - 1;
+                playerSkipTurns[targetPlayer - 1] = 1;
+                eventMessageDisplay.textContent += " \n💥 残念！次のターンは1回お休みです。";
+            }
+        }
+
+        // コマの位置更新
+        function updatePlayerPiecePosition(playerIndex) {
+            const squareIndex = playerPositions[playerIndex];
+            const square = squares[squareIndex];
+            const piece = playerPieces[playerIndex];
+
+            if (square && piece) {
+                const pieceWidth = 30; // CSSと合わせる
+                const pieceHeight = 30;
+
+                piece.style.left = `calc(${square.x}% - ${pieceWidth / 2}px)`;
+                piece.style.top = `calc(${square.y}% - ${pieceHeight / 2}px)`;
+
+                let offsetMagnitude = window.innerWidth < 600 ? 3 : 5;
+                let overlapCount = 0;
+                let transformX = 0;
+                let transformY = 0;
+
+                for (let i = 0; i < numPlayers; i++) {
+                    if (i !== playerIndex && playerPositions[i] === squareIndex) {
+                        overlapCount++;
+                        switch((playerIndex + overlapCount) % 4) { 
+                            case 0: transformX += offsetMagnitude; transformY += offsetMagnitude; break;
+                            case 1: transformX -= offsetMagnitude; transformY += offsetMagnitude; break;
+                            case 2: transformX += offsetMagnitude; transformY -= offsetMagnitude; break;
+                            case 3: transformX -= offsetMagnitude; transformY -= offsetMagnitude; break;
+                        }
+                    }
+                }
+                piece.style.transform = `translate(${transformX}px, ${transformY}px)`;
+            }
+        }
+
+        function updateGameInfo() {
+            currentPlayerDisplay.textContent = playerNames[currentPlayer - 1];
+        }
+
+        rollDiceButton.disabled = true;
+    });
+</script>
+
+</body>
+</html>
